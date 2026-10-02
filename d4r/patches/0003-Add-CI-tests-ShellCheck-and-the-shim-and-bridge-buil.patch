@@ -1,0 +1,96 @@
+From 420cef29aac5c1dbebcea6c304dc227c7044c125 Mon Sep 17 00:00:00 2001
+From: Rodrigo de Oliveira Ramos
+ <89891427+Rodrigo-O-Ramos@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 02:38:36 +0000
+Subject: [PATCH 3/3] Add CI: tests, ShellCheck, and the shim and bridge builds
+
+Runs the CPU tests, ShellCheck at error level and a Python syntax check,
+and builds the NGX shim (MinGW-w64 and clang-cl) and the Wine CUDA
+bridge (winegcc) on Ubuntu 24.04. The native kernels need ROCm and are
+not built. d4r_proton_env.sh is sourced, so it gets a shell directive.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017fnL42WqrmG5ACLLvtKRXu
+---
+ .github/workflows/ci.yml  | 43 +++++++++++++++++++++++++++++++++++++++
+ docs/building.md          |  5 ++++-
+ scripts/d4r_proton_env.sh |  1 +
+ 3 files changed, 48 insertions(+), 1 deletion(-)
+ create mode 100644 .github/workflows/ci.yml
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..4d0a1e0
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,43 @@
++# CPU-only checks: configuration and install-check tests, shell scripts, and the two Windows-side
++# components (the NGX shim and the Wine CUDA bridge). Native kernels need ROCm and are not built here.
++name: CI
++
++on:
++  push:
++  pull_request:
++  workflow_dispatch:
++
++permissions:
++  contents: read
++
++jobs:
++  tests:
++    name: Tests and script checks
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v4
++      - name: Configuration and install-check tests
++        run: python3 -m unittest discover -s tests -v
++      - name: ShellCheck (errors)
++        run: |
++          command -v shellcheck >/dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
++          shellcheck -S error scripts/*.sh kernels/build.sh kernels/tex/build_tex.sh packaging/d4r-check.sh
++      - name: Python syntax
++        run: python3 -m compileall -q kernels packaging scripts tests tools
++
++  windows-components:
++    name: Build the NGX shim and the Wine CUDA bridge
++    runs-on: ubuntu-24.04
++    steps:
++      - uses: actions/checkout@v4
++      - name: Install MinGW-w64, clang-cl, Vulkan headers and Wine's winegcc
++        run: |
++          sudo apt-get update
++          sudo apt-get install -y g++-mingw-w64-x86-64-posix clang-tools-18 libvulkan-dev wine64-tools
++      - name: NGX shim (build/d4r_nvngx.dll)
++        run: bash scripts/build_d4r_nvngx_shim.sh
++        env:
++          CLANG_CL: /usr/lib/llvm-18/bin/clang-cl
++          MINGW_CXX: x86_64-w64-mingw32-g++-posix
++      - name: Wine CUDA bridge (build/wine-nvcuda)
++        run: bash scripts/build_wine_nvcuda_bridge.sh
+diff --git a/docs/building.md b/docs/building.md
+index ac43fdb..287f4ab 100644
+--- a/docs/building.md
++++ b/docs/building.md
+@@ -143,6 +143,9 @@ Run `bash scripts/build_release_glibc241.sh` inside the container. The script ch
+ 
+ ## Checks
+ 
+-- `scripts/check_environment.sh` lists the tools, GPU and Proton builds it finds.
++- `scripts/check_environment.sh` lists the tools, GPUs (with the one d4r uses) and Proton builds it finds.
++- `python3 -m unittest discover -s tests -v` runs the CPU tests: configuration, native kernel selection and
++  `packaging/d4r-check.sh`. CI (`.github/workflows/ci.yml`) runs them with ShellCheck and builds the shim and
++  the bridge on every push; the native kernels need ROCm and are not built there.
+ - The D3D12 harness (`scripts/run_d3d12_dlss_harness_proton.sh`) drives DLSS outside a game.
+ - Native kernels have their own validation path; see [native-kernels.md](native-kernels.md).
+diff --git a/scripts/d4r_proton_env.sh b/scripts/d4r_proton_env.sh
+index 4f78528..5eabca9 100644
+--- a/scripts/d4r_proton_env.sh
++++ b/scripts/d4r_proton_env.sh
+@@ -1,3 +1,4 @@
++# shellcheck shell=bash
+ # Source this to export the environment a Proton process needs to run
+ # official DLSS on AMD through d4r (ZLUDA + Wine CUDA bridge + NGX shim).
+ # Paths can be overridden before sourcing.
+-- 
+2.43.0
+
