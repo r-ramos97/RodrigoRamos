@@ -24,7 +24,7 @@ O que muda em relação ao Linux:
 | | Linux/Proton | Windows nativo |
 |---|---|---|
 | Resultado do frame | o do próprio frame (vkd3d-proton com patch divide a command list) | padrão: o mais recente que já terminou, **1 frame de atraso** (`FrameAge = 1`); experimental: **o do próprio frame** (`FrameAge = 0`, a GPU espera a DLSS dentro da command list do jogo) |
-| Entradas e saída da DLSS | ficam na VRAM | ficam na VRAM **se o driver da AMD deixar o HIP mapear buffers D3D12**; senão passam pela RAM (~55 MB por frame em 1440p) |
+| Entradas e saída da DLSS | ficam na VRAM | ficam na VRAM **se o driver da AMD deixar o HIP mapear buffers D3D12** (o d4r confere isso sozinho ao iniciar, mandando bytes nos dois sentidos); senão passam pela RAM (~55 MB por frame em 1440p) |
 | GPU usada | detectada pelo KFD | a GPU do adaptador D3D12 do jogo (o d4r ignora a iGPU do 7800X3D sozinho) |
 
 ## 1. O que instalar
@@ -150,6 +150,7 @@ o seu nome de usuário do Windows. O que vai no zip:
 | `ZLUDA cuInit failed` | HIP SDK sem suporte à GPU ou driver antigo | atualize o driver e o HIP SDK |
 | O jogo congela 1–3 min ao ativar a DLSS | compilação dos kernels na primeira vez | espere; nas próximas vezes é rápido |
 | Imagem preta ou com ruído | kernel incorreto ou NGX recusou algo | mande os logs e o `test-output.raw.bmp` |
+| Log com "but the bytes do not cross" | o driver aceita o buffer compartilhado, mas o HIP e o D3D12 não enxergam os mesmos bytes | nada a fazer: o d4r já passou sozinho a copiar pela RAM (mais lento, imagem correta). Mande os logs |
 | Log com "HIP device 0: ... integrated" | a iGPU do 7800X3D está ativa | normal: o d4r escolhe a RX 9070 XT. Se quiser, desative a iGPU na BIOS |
 
 **Não use em jogos com anti-cheat online**: a injeção de DLL do OptiScaler pode dar ban.
