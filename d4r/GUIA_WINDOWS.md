@@ -19,10 +19,41 @@ colaborador (xdfnx-dev) e aceito pelo mantenedor no PR #11 (tag `v0.1.4`). **Ele
   cena parada mediu cerca de **65 FPS**, e uma sessão de 10 minutos (35.664 frames) terminou sem nenhum erro.
 - Ainda é um **pacote de desenvolvimento**. O desempenho do K continua em trabalho, e o modelo L não foi validado
   no Windows.
-- **Não existe download pronto.** Você compila no seu PC, porque os kernels nativos são gerados a partir do seu
-  próprio `nvngx_dlss.dll` e arquivos da NVIDIA não podem ser distribuídos.
+- Desde 2 de outubro há um **pacote de teste rápido pronto** (abaixo), sem compilar nada. Ele é um diagnóstico de
+  correção, não a versão otimizada para FPS.
 
-## 1. O que instalar antes
+## Jeito fácil: o pacote de teste rápido (recomendado)
+
+Não precisa de HIP SDK, Git, Python nem Visual Studio: o pacote traz o próprio runtime. As instruções oficiais, em
+inglês, estão em [`docs/windows-quick-test.txt`](https://github.com/countervolts/d4r/blob/windows/docs/windows-quick-test.txt).
+
+1. **Baixe o ZIP** do pre-release `windows-quick-test-...` mais recente em
+   [github.com/xdfnx-dev/d4r/releases](https://github.com/xdfnx-dev/d4r/releases), no fork do colaborador que fez o
+   port. Baixe só o ZIP do pacote; o ZIP das fontes é separado e você não precisa dele.
+2. **Extraia o ZIP inteiro** numa pasta normal, por exemplo `Área de Trabalho\d4r-test`. Não rode de dentro do ZIP
+   e não copie nada para a pasta do jogo à mão.
+3. **Deixe prontos os dois arquivos da NVIDIA** (veja "Arquivos da NVIDIA" abaixo): `_nvngx.dll` 32.0.16.1714 e
+   `nvngx_dlss.dll` 310.9.1. Outras versões são recusadas. O `_nvngx.dll` pequeno que vem no pacote é do d4r, não o
+   da NVIDIA.
+4. **Feche o jogo** e dê dois cliques em **`START-K.cmd`** (DLSS 4) ou **`START-M.cmd`** (DLSS 4.5). Ele pede o
+   `.exe` do jogo e os dois arquivos da NVIDIA, e lembra as escolhas para a próxima vez: depois é só apertar Enter
+   para o mesmo jogo, ou C para escolher outro. Se o jogo precisa da Steam ou da Epic, deixe-as abertas. Se abrir um
+   launcher, aperte C na próxima vez e escolha o `.exe` de verdade do jogo.
+5. **No jogo**, escolha DLSS (ou FSR/XeSS, se DLSS não aparecer) e deixe a geração de quadros **desligada**. A
+   primeira vez pode demorar vários minutos compilando. Deixe o console aberto, jogue 30 segundos, veja se a imagem
+   está certa e **saia do jogo**.
+6. **Mande o ZIP** que o console mostra como "SEND THIS ONE FILE" na
+   [issue #10](https://github.com/countervolts/d4r/issues/10), dizendo GPU (RX 9070 XT), jogo, K ou M e como ficou a
+   imagem: "correct image", "black screen", "crash" ou "visual corruption". Os logs podem ter caminhos com o seu nome
+   de usuário: revise antes de postar.
+
+Para **desinstalar**: feche o jogo e dê dois cliques em `RESTORE-GAME.cmd`. Restaure o jogo anterior antes de testar
+outro, e abra os testes sempre pelo `START-K/M.cmd`, não pelo atalho normal do jogo.
+
+O resto deste guia é para **compilar você mesmo** (avançado). Só faça se quiser a versão de desenvolvimento ou o
+teste rápido não servir.
+
+## 1. O que instalar antes (só para compilar)
 
 | O quê | Para quê |
 |---|---|
