@@ -29,7 +29,11 @@ jogo (D3D12) → OptiScaler → d4r_nvngx.dll (shim NGX) → NGX + nvngx_dlss.dl
 
 A RX 9070 XT é `gfx1201`: o d4r a suporta só em emulador, então qualquer resultado real é novidade.
 
-### 0. Linux em dual boot (o d4r não roda no Windows nem no WSL)
+> **Novo: port para Windows 11 nativo** no fork [r-ramos97/d4r](https://github.com/r-ramos97/d4r/tree/windows-native)
+> (branch `windows-native`). Passo a passo de teste neste PC: [GUIA_WINDOWS.md](GUIA_WINDOWS.md). O caminho abaixo,
+> com Linux, continua sendo o da release oficial.
+
+### 0. Linux em dual boot (a release oficial do d4r não roda no Windows nem no WSL)
 
 - Precisa de Linux nativo: o d4r usa Proton, `/dev/kfd` e Vulkan do driver real.
 - Recomendado: **CachyOS** (base Arch, o mesmo ambiente do autor), num SSD separado ou numa partição de
