@@ -97,8 +97,13 @@ O script faz duas coisas:
 **A primeira execução pode travar por vários minutos** enquanto o ZLUDA compila os kernels da DLSS. O cache
 fica em `%LOCALAPPDATA%\zluda`, e as próximas execuções são rápidas.
 
-Opções: `-Model M` (DLSS 4.5), `-Model E` (DLSS 3 CNN), `-Frames 120` e `-SameFrame` (testa o modo
-`FrameAge = 0`; o log diz se a espera na GPU funcionou, nas linhas "same-frame wait").
+Opções: `-Model M` (DLSS 4.5), `-Model E` (DLSS 3 CNN), `-Frames 120`, `-SameFrame` (testa o modo
+`FrameAge = 0`; o log diz se a espera na GPU funcionou, nas linhas "same-frame wait") e `-Rgba8` (cor e saída em
+RGBA8 em vez do formato da própria DLSS: testa a conversão de formatos na GPU, usada por jogos com outros
+formatos).
+
+Sequência sugerida para o primeiro dia: `test-dlss.ps1`, depois `test-dlss.ps1 -Rgba8`, depois
+`test-dlss.ps1 -SameFrame`, rodando `collect-logs.ps1` depois de cada um.
 
 ## 5. No jogo
 
