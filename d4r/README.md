@@ -95,20 +95,35 @@ selecione GE-Proton 11 e use as opções de lançamento
 Para medir FPS do jeito do autor: MangoHud com log por frame, mesmo trajeto, rodadas lado a lado
 (veja `docs/performance.md`). Logs do shim ficam em `~/.cache/d4r-dlss-captures/`.
 
-## Melhorias encontradas (sem precisar de GPU)
+## Patches prontos para o projeto original (`patches/`)
 
-1. **`packaging/d4r-check.sh` mostra a GPU errada com iGPU + placa dedicada** — corrigido em
-   [`patches/0001-d4r-check-report-the-GPU-the-bridge-actually-uses.patch`](patches/0001-d4r-check-report-the-GPU-the-bridge-actually-uses.patch).
-   A bridge escolhe a GPU com mais SIMDs (e respeita `D4R_GPU_ARCH`); o check pegava a primeira.
-   Testado com uma topologia KFD falsa (iGPU gfx1036 + gfx1201): antes reportava `gfx1036`, agora `gfx1201`.
-   Para aplicar no seu fork:
-   ```sh
-   git am /caminho/para/0001-d4r-check-report-the-GPU-the-bridge-actually-uses.patch
-   ```
-2. **Não há CI** (sem `.github/workflows`). Um workflow rodando `tests/` e `sh -n`/shellcheck nos scripts
-   pegaria regressões sem precisar de GPU.
-3. **`scripts/check_environment.sh` depende de `rg` (ripgrep)**, que não está nos requisitos; sem ele, as
-   seções de GPU e Vulkan só mostram `rg: command not found`. E a lista de pacotes só funciona no Arch (`pacman`).
+Três commits sobre `countervolts/d4r` `f0d1a65`, testados aqui: os 19 testes de CPU passam (11 originais +
+8 novos), ShellCheck sem erros, e o shim e a bridge compilam no Ubuntu 24.04.
+
+| Patch | O que muda |
+|---|---|
+| `0001-d4r-check-…` | `d4r-check.sh` mostra a GPU e a pasta de kernels que a bridge realmente usa: GPU com mais SIMDs (antes pegava a primeira, que costuma ser a iGPU do Ryzen 7000), `D4R_GPU_ARCH`, `<alvo>-fp8` com `NativeFp8` na RDNA4 e `accuracy/<alvo>` com `PreferAccuracy`. Inclui `tests/test_install_check.py`, que compara o resultado com a seleção em C da bridge para todos os alvos e configurações. |
+| `0002-check_environment-…` | `check_environment.sh` sem depender do ripgrep, lista as GPUs de compute com o alvo `gfx` e qual o d4r usa, e lista pacotes também com `dpkg`/`rpm`. |
+| `0003-Add-CI-…` | GitHub Actions: testes, ShellCheck, sintaxe Python e compilação do shim (MinGW + clang-cl) e da bridge (winegcc). Os kernels nativos precisam de ROCm e ficam de fora. |
+
+### Abrir o PR no countervolts/d4r
+
+Esta sessão não consegue criar o fork nem abrir PR lá. No PC principal (ou em qualquer máquina):
+
+```sh
+# 1. crie o fork em https://github.com/countervolts/d4r/fork (um clique)
+git clone https://github.com/r-ramos97/d4r.git && cd d4r
+git checkout -b tooling-ci-install-check
+git am /caminho/para/RodrigoRamos/d4r/patches/*.patch
+git push -u origin tooling-ci-install-check
+# 2. abra: https://github.com/countervolts/d4r/compare/main...r-ramos97:d4r:tooling-ci-install-check
+```
+
+O texto sugerido para o PR está em [`PR_UPSTREAM.md`](PR_UPSTREAM.md).
+
+## 10 sugestões de melhoria
+
+Veja [`SUGESTOES.md`](SUGESTOES.md).
 
 ## Como enviar
 
