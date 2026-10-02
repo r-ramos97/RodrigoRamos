@@ -146,7 +146,7 @@ o seu nome de usuário do Windows. O que vai no zip:
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | O OptiScaler não oferece DLSS | o `version.dll` do d4r não carregou o NVAPI antes do OptiScaler | confira se o `version.dll` é o do d4r (o `setup.ps1` verifica) e se nenhum outro mod substituiu |
-| `loading ZLUDA ... failed` no log | HIP não encontrado | instale o HIP SDK, reinicie, ou aponte `RocmDir` em `d4r\d4r.ini` |
+| `AMD's HIP runtime ... is not installed` ou `loading ZLUDA ... failed` no log | HIP não encontrado (o d4r se desliga sozinho e o jogo continua, sem DLSS) | instale o HIP SDK, reinicie, ou aponte `RocmDir` em `d4r\d4r.ini` |
 | `ZLUDA cuInit failed` | HIP SDK sem suporte à GPU ou driver antigo | atualize o driver e o HIP SDK |
 | O jogo congela 1–3 min ao ativar a DLSS | compilação dos kernels na primeira vez | espere; nas próximas vezes é rápido |
 | Imagem preta ou com ruído | kernel incorreto ou NGX recusou algo | mande os logs e o `test-output.raw.bmp` |
