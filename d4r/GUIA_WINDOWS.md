@@ -33,8 +33,9 @@ colaborador (xdfnx-dev) e aceito pelo mantenedor no PR #11 (tag `v0.1.4`). **Ele
 | [Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) com "Desktop development with C++" (MSVC v143 e Windows SDK 10.0.26100) | compilar o OptiScaler com os patches |
 
 O resto (llvm-mingw, Rust, CMake, Ninja, NumPy e o runtime HIP TheRock `10.2.0a20260929`) os scripts baixam
-para dentro da pasta `.tools` do repositório, com hash conferido, sem instalar nada no sistema. Separe espaço em
-disco e **algumas horas** para o primeiro build: o LLVM do ZLUDA é a parte demorada.
+para dentro da pasta `.tools` do repositório, com hash conferido, sem instalar nada no sistema. Separe **uns 50 GB**
+livres no disco (estimativa com folga) e **algumas horas** para o primeiro build: o LLVM do ZLUDA é a parte
+demorada. Feche jogos e o navegador durante o build: 16 GB de RAM ficam apertados.
 
 **Arquivos da NVIDIA**, que você mesmo obtém:
 
@@ -47,9 +48,14 @@ Guarde os dois numa pasta fixa, por exemplo `C:\d4r-nvidia\`.
 
 ## 2. Baixar o código
 
-No PowerShell, numa pasta com espaço, por exemplo `C:\src`:
+Abra o **PowerShell** (não precisa ser como administrador) e use uma pasta de caminho curto, por exemplo `C:\src`:
+o LLVM tem caminhos longos. A primeira linha libera os scripts só nesta janela do PowerShell; repita-a sempre que
+abrir uma janela nova.
 
 ```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+git config --global core.longpaths true
+mkdir C:\src -Force; cd C:\src
 git lfs install
 git clone -b windows https://github.com/countervolts/d4r.git
 cd d4r
@@ -68,11 +74,12 @@ Todos os comandos rodam na pasta `d4r`, em ordem. Cada script para com uma mensa
 powershell -NoProfile -File scripts/windows/setup-windows-tools.ps1 -RuntimeProfile therock
 powershell -NoProfile -File scripts/windows/setup-rust-toolchain.ps1
 
-# ZLUDA com os patches do d4r (o LLVM leva horas na primeira vez)
+# ZLUDA com os patches do d4r (o LLVM é a parte demorada)
+# -Jobs 8: usa 8 dos 16 threads do 7800X3D; com 16 GB de RAM, mais que isso pode faltar memória
 powershell -NoProfile -File scripts/windows/prepare-zluda-source.ps1
-powershell -NoProfile -File scripts/windows/build-zluda-llvm.ps1
+powershell -NoProfile -File scripts/windows/build-zluda-llvm.ps1 -Jobs 8
 powershell -NoProfile -File scripts/windows/build-zluda-helpers.ps1
-powershell -NoProfile -File scripts/windows/build-zluda-windows.ps1
+powershell -NoProfile -File scripts/windows/build-zluda-windows.ps1 -Jobs 8
 
 # OptiScaler com os patches do d4r
 powershell -NoProfile -File scripts/windows/build-optiscaler-windows.ps1
