@@ -23,7 +23,7 @@ O que muda em relação ao Linux:
 
 | | Linux/Proton | Windows nativo |
 |---|---|---|
-| Resultado do frame | o do próprio frame (vkd3d-proton com patch divide a command list) | o mais recente que já terminou, **1 frame de atraso** (`FrameAge = 1`) |
+| Resultado do frame | o do próprio frame (vkd3d-proton com patch divide a command list) | padrão: o mais recente que já terminou, **1 frame de atraso** (`FrameAge = 1`); experimental: **o do próprio frame** (`FrameAge = 0`, a GPU espera a DLSS dentro da command list do jogo) |
 | Entradas e saída da DLSS | ficam na VRAM | ficam na VRAM **se o driver da AMD deixar o HIP mapear buffers D3D12**; senão passam pela RAM (~55 MB por frame em 1440p) |
 | GPU usada | detectada pelo KFD | a GPU do adaptador D3D12 do jogo (o d4r ignora a iGPU do 7800X3D sozinho) |
 
@@ -85,9 +85,11 @@ O script faz duas coisas:
 
 1. **Teste de VRAM compartilhada** (`d4r\tools\d4r-interop-probe.exe`, leva poucos segundos; o relatório vai
    para `d4r\interop-report.txt`). Ele mostra se o driver deixa o HIP e o D3D12 compartilharem memória de
-   vídeo, nos dois sentidos, e se a sincronização pela GPU funciona. A última linha resume:
-   - `RESULT: VRAM sharing works ...`: o caminho rápido, sem cópias pela RAM, vai funcionar nos jogos.
-   - `RESULT: ... FAILS`: o d4r continua funcionando, só copia pela RAM. Me mande o relatório.
+   vídeo nos dois sentidos, se a sincronização pela GPU funciona e se o modo "mesmo frame" (`FrameAge = 0`)
+   funciona. As últimas linhas resumem:
+   - `VRAM sharing works`: o caminho rápido, sem cópias pela RAM, vai funcionar nos jogos.
+   - `d4r keeps copying through host memory`: o d4r continua funcionando, só copia pela RAM.
+   - `Same-frame results work on this PC`: dá para usar `FrameAge = 0` (sem o atraso de 1 frame).
 2. **DLSS em quadros sintéticos**, 1280x720 → 2560x1440, sem jogo e sem OptiScaler. Ele grava
    `d4r\test-output.raw.bmp`, o último quadro gerado: um padrão de teste nítido em movimento quer dizer que
    funciona; preto ou ruído quer dizer que não.
@@ -95,7 +97,8 @@ O script faz duas coisas:
 **A primeira execução pode travar por vários minutos** enquanto o ZLUDA compila os kernels da DLSS. O cache
 fica em `%LOCALAPPDATA%\zluda`, e as próximas execuções são rápidas.
 
-Opções: `-Model M` (DLSS 4.5), `-Model E` (DLSS 3 CNN), `-Frames 120`.
+Opções: `-Model M` (DLSS 4.5), `-Model E` (DLSS 3 CNN), `-Frames 120` e `-SameFrame` (testa o modo
+`FrameAge = 0`; o log diz se a espera na GPU funcionou, nas linhas "same-frame wait").
 
 ## 5. No jogo
 
@@ -107,7 +110,7 @@ Configurações em `d4r\d4r.ini` (reinicie o jogo depois de mudar):
 | Chave | O que faz |
 |---|---|
 | `[DLSS] Model` | `K` (DLSS 4, padrão), `M` (DLSS 4.5, melhor imagem, mais pesado), `E` (DLSS 3 CNN) |
-| `[Latency] FrameAge` | `1` = menor latência; `2`–`3` = mais FPS, mais latência |
+| `[Latency] FrameAge` | `0` = cada frame mostra o próprio resultado (experimental; se a espera na GPU falhar, o d4r volta sozinho para `1`); `1` = 1 frame de atraso, o padrão; `2`–`3` = mais FPS, mais latência |
 | `[Kernels] NativeFp8` | RDNA4: FP8 nativo (`on`) ou 16 bits (`off`); compare FPS e imagem |
 | `[Kernels] PreferAccuracy` | `true` busca fidelidade máxima à DLSS da RTX, mais lento |
 | `[Interop] VramInterop` | `true` usa VRAM compartilhada quando possível |
@@ -115,7 +118,15 @@ Configurações em `d4r\d4r.ini` (reinicie o jogo depois de mudar):
 
 ## 6. O que me mandar
 
-Depois de cada teste, junte estes arquivos (todos na pasta do jogo):
+O jeito mais fácil: depois de cada teste, rode na pasta do jogo
+
+```powershell
+powershell -ExecutionPolicy Bypass -File d4r\collect-logs.ps1
+```
+
+Ele cria `d4r-report-<data>.zip` com todos os logs abaixo e um `system.txt` (versão do Windows, GPUs e
+drivers, HIP SDK, versões dos arquivos da NVIDIA e do d4r). Os logs têm caminhos de arquivos, que podem incluir
+o seu nome de usuário do Windows. O que vai no zip:
 
 - `d4r\d4r_nvngx.log`: log do d4r e da bridge, recriado a cada execução;
 - `d4r_nvapi.log`: tudo o que o jogo, o OptiScaler e o NGX pediram ao NVAPI (linhas "unimplemented" mostram o
