@@ -1,163 +1,145 @@
-# d4r no Windows 11 nativo: guia de teste (RX 9070 XT + Ryzen 7 7800X3D)
+# d4r no Windows 11 nativo: guia para a RX 9070 XT (Ryzen 7 7800X3D)
 
-Port nativo para Windows no fork [r-ramos97/d4r](https://github.com/r-ramos97/d4r), branch
-[`windows-native`](https://github.com/r-ramos97/d4r/tree/windows-native). Ele roda a DLSS oficial da NVIDIA na
-RX 9070 XT sem Linux e sem Proton. O design completo está em
-[`docs/windows.md`](https://github.com/r-ramos97/d4r/blob/windows-native/docs/windows.md).
+O d4r tem um **port nativo para Windows oficial**, no branch
+[`windows`](https://github.com/countervolts/d4r/tree/windows) do projeto original. Ele foi feito por um
+colaborador (xdfnx-dev) e aceito pelo mantenedor no PR #11 (tag `v0.1.4`). **Ele foi testado numa RX 9070 XT
+(gfx1201), a sua placa.** Este guia resume como compilar e testar esse port no seu PC.
 
-> **Estado: prévia.** Todas as partes compilam no CI e passam nos testes com bibliotecas simuladas, no Windows
-> (runner do GitHub) e no Wine. **Ainda não rodou numa GPU de verdade.** O seu PC faz o primeiro teste real.
-> Os logs que ele gerar mostram o que ainda falta.
+> **A documentação oficial manda.** Se algo aqui divergir dela, siga a oficial:
+> [`docs/windows-game.md`](https://github.com/countervolts/d4r/blob/windows/docs/windows-game.md) (instalar e
+> rodar num jogo), [`docs/windows-rdna4-port.md`](https://github.com/countervolts/d4r/blob/windows/docs/windows-rdna4-port.md)
+> (compilar e testar) e [`docs/windows-gpu-support.md`](https://github.com/countervolts/d4r/blob/windows/docs/windows-gpu-support.md)
+> (GPUs e diagnóstico).
 
-## Como funciona no Windows
+## Estado do port oficial (2 de outubro de 2026)
 
-```
-jogo (D3D12) → OptiScaler (dxgi.dll) → d4r\nvngx.dll (shim, modo Windows nativo)
-     → _nvngx.dll + nvngx_dlss.dll da NVIDIA (caminho CUDA)
-     → d4r\nvcuda.dll (bridge nativa) → d4r\zluda\zluda_nvcuda.dll (ZLUDA) → HIP SDK da AMD
-     → kernels nativos RDNA4 (gfx1201, com FP8 nativo)
-nvapi64.dll + version.dll do d4r: fazem o OptiScaler e o NGX enxergarem uma GPU NVIDIA (Ada)
-```
+- DLSS 4 (modelo K) e DLSS 4.5 (modelo M) rodam na RX 9070 XT. Entradas e saída ficam na VRAM, e cada frame
+  mostra o próprio resultado, sem atraso.
+- Todos os testes de hardware passam. Em Silent Hill 2 em 4K com K (entrada 2259x1271 → saída 3840x2160), uma
+  cena parada mediu cerca de **65 FPS**, e uma sessão de 10 minutos (35.664 frames) terminou sem nenhum erro.
+- Ainda é um **pacote de desenvolvimento**. O desempenho do K continua em trabalho, e o modelo L não foi validado
+  no Windows.
+- **Não existe download pronto.** Você compila no seu PC, porque os kernels nativos são gerados a partir do seu
+  próprio `nvngx_dlss.dll` e arquivos da NVIDIA não podem ser distribuídos.
 
-O que muda em relação ao Linux:
+## 1. O que instalar antes
 
-| | Linux/Proton | Windows nativo |
-|---|---|---|
-| Resultado do frame | o do próprio frame (vkd3d-proton com patch divide a command list) | padrão: o mais recente que já terminou, **1 frame de atraso** (`FrameAge = 1`); experimental: **o do próprio frame** (`FrameAge = 0`, a GPU espera a DLSS dentro da command list do jogo) |
-| Entradas e saída da DLSS | ficam na VRAM | ficam na VRAM **se o driver da AMD deixar o HIP mapear buffers D3D12** (o d4r confere isso sozinho ao iniciar, mandando bytes nos dois sentidos); senão passam pela RAM (~55 MB por frame em 1440p) |
-| GPU usada | detectada pelo KFD | a GPU do adaptador D3D12 do jogo (o d4r ignora a iGPU do 7800X3D sozinho) |
-
-## 1. O que instalar
-
-1. **Driver AMD Adrenalin** atual.
-2. **AMD HIP SDK para Windows**: [amd.com/en/developer/resources/rocm-hub/hip-sdk.html](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html).
-   Use a versão mais nova que suporte a RX 9070 XT (7.x de preferência, que traz `amdhip64_7.dll`). O
-   instalador define a variável `HIP_PATH`, que o d4r usa para achar o HIP. Reinicie depois de instalar.
-3. **OptiScaler 0.9.4**: você vai precisar do `OptiScaler.dll` e do `OptiScaler.ini`.
-4. **Dois arquivos da NVIDIA**, que o pacote não inclui:
-   - `nvngx_dlss.dll` **versão 310.7 ou 310.9**. Só essas usam os kernels nativos, que são os rápidos. Muitos
-     jogos trazem uma versão mais antiga, que roda, mas mais devagar.
-   - `_nvngx.dll`, o runtime NGX que vem dentro do **driver NVIDIA 596.36**, a versão testada no Linux.
-     Baixe o instalador do driver no site da NVIDIA, abra-o com o 7-Zip (sem instalar) e procure o
-     `_nvngx.dll` lá dentro.
-5. **7-Zip**, para abrir o instalador da NVIDIA.
-
-## 2. Baixar o pacote do d4r para Windows
-
-O CI do fork monta o pacote sozinho:
-
-1. Abra [Actions → Windows package](https://github.com/r-ramos97/d4r/actions/workflows/windows-package.yml)
-   logado na sua conta.
-2. Entre no último run verde que tenha **Artifacts** e baixe **`d4r-windows`**. Dentro dele vem
-   `d4r-<versão>-windows-preview.zip` com o `.sha256`.
-
-> O pacote depende do build do ZLUDA para Windows (workflow
-> [Windows](https://github.com/r-ramos97/d4r/actions/workflows/windows.yml), cerca de 1 h por causa do LLVM).
-> Se ainda não houver artifact, esse build não terminou com sucesso.
-
-## 3. Instalar num jogo
-
-Escolha um jogo D3D12 **sem anti-cheat** da
-[SUPPORTED_GAMES.md](https://github.com/r-ramos97/d4r/blob/windows-native/SUPPORTED_GAMES.md).
-
-1. Extraia o zip na pasta do `.exe` principal do jogo. Em jogos Unreal Engine é
-   `<jogo>\<Projeto>\Binaries\Win64\`. Devem aparecer `nvapi64.dll`, `version.dll`,
-   `D4R_WINDOWS_README.txt` e a pasta `d4r\`.
-   - Se a pasta já tiver um `version.dll` de outro mod, os dois não funcionam juntos.
-2. Copie o `OptiScaler.dll` do OptiScaler 0.9.4 para a mesma pasta com o nome **`dxgi.dll`**, junto com o
-   `OptiScaler.ini`.
-3. Copie o `nvngx_dlss.dll` para `d4r\` e o `_nvngx.dll` para `d4r\ngx\`.
-4. Abra o PowerShell na pasta do jogo e rode:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File d4r\setup.ps1
-   ```
-   O script confere tudo, gera os manifests dos kernels nativos a partir do seu `nvngx_dlss.dll` e ajusta o
-   `OptiScaler.ini` (o original fica salvo como `OptiScaler.ini.d4r-backup`). Corrija o que ele apontar e rode
-   de novo até ele dizer que está tudo certo.
-
-## 4. Primeiro teste, sem o jogo (o mais importante)
-
-```powershell
-powershell -ExecutionPolicy Bypass -File d4r\test-dlss.ps1
-```
-
-O script faz duas coisas:
-
-1. **Teste de VRAM compartilhada** (`d4r\tools\d4r-interop-probe.exe`, leva poucos segundos; o relatório vai
-   para `d4r\interop-report.txt`). Ele mostra se o driver deixa o HIP e o D3D12 compartilharem memória de
-   vídeo nos dois sentidos, se a sincronização pela GPU funciona e se o modo "mesmo frame" (`FrameAge = 0`)
-   funciona. As últimas linhas resumem:
-   - `VRAM sharing works`: o caminho rápido, sem cópias pela RAM, vai funcionar nos jogos.
-   - `d4r keeps copying through host memory`: o d4r continua funcionando, só copia pela RAM.
-   - `Same-frame results work on this PC`: dá para usar `FrameAge = 0` (sem o atraso de 1 frame).
-2. **DLSS em quadros sintéticos**, 1280x720 → 2560x1440, sem jogo e sem OptiScaler. Ele grava
-   `d4r\test-output.raw.bmp`, o último quadro gerado: um padrão de teste nítido em movimento quer dizer que
-   funciona; preto ou ruído quer dizer que não.
-
-**A primeira execução pode travar por vários minutos** enquanto o ZLUDA compila os kernels da DLSS. O cache
-fica em `%LOCALAPPDATA%\zluda`, e as próximas execuções são rápidas.
-
-Opções: `-Model M` (DLSS 4.5), `-Model E` (DLSS 3 CNN), `-Frames 120`, `-SameFrame` (testa o modo
-`FrameAge = 0`; o log diz se a espera na GPU funcionou, nas linhas "same-frame wait") e `-Rgba8` (cor e saída em
-RGBA8 em vez do formato da própria DLSS: testa a conversão de formatos na GPU, usada por jogos com outros
-formatos).
-
-Sequência sugerida para o primeiro dia: `test-dlss.ps1`, depois `test-dlss.ps1 -Rgba8`, depois
-`test-dlss.ps1 -SameFrame`, rodando `collect-logs.ps1` depois de cada um.
-
-## 5. No jogo
-
-Abra o jogo e escolha **DLSS** nas opções gráficas, começando pelo modo Quality. Na primeira vez também pode
-haver uma pausa longa por causa da compilação dos kernels.
-
-Configurações em `d4r\d4r.ini` (reinicie o jogo depois de mudar):
-
-| Chave | O que faz |
+| O quê | Para quê |
 |---|---|
-| `[DLSS] Model` | `K` (DLSS 4, padrão), `M` (DLSS 4.5, melhor imagem, mais pesado), `E` (DLSS 3 CNN) |
-| `[Latency] FrameAge` | `0` = cada frame mostra o próprio resultado (experimental; se a espera na GPU falhar, o d4r volta sozinho para `1`); `1` = 1 frame de atraso, o padrão; `2`–`3` = mais FPS, mais latência |
-| `[Kernels] NativeFp8` | RDNA4: FP8 nativo (`on`) ou 16 bits (`off`); compare FPS e imagem |
-| `[Kernels] PreferAccuracy` | `true` busca fidelidade máxima à DLSS da RTX, mais lento |
-| `[Interop] VramInterop` | `true` usa VRAM compartilhada quando possível |
-| `[Env] D4R_HIP_DEVICE = N` | força outra GPU (os números aparecem no log, nas linhas "HIP device") |
+| Driver AMD Adrenalin atual | a GPU |
+| [AMD HIP SDK 7.2 para Windows](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) (instala em `C:\Program Files\AMD\ROCm\7.2`) | compilar os helpers do ZLUDA. O runtime usado pelo jogo é outro (TheRock), que o setup baixa sozinho |
+| [Git for Windows](https://git-scm.com/download/win) com Git LFS | baixar o código |
+| [Python 3.11 x64](https://www.python.org/downloads/windows/) (marque "Add to PATH") | ferramentas de build e manifests |
+| [Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) com "Desktop development with C++" (MSVC v143 e Windows SDK 10.0.26100) | compilar o OptiScaler com os patches |
 
-## 6. O que me mandar
+O resto (llvm-mingw, Rust, CMake, Ninja, NumPy e o runtime HIP TheRock `10.2.0a20260929`) os scripts baixam
+para dentro da pasta `.tools` do repositório, com hash conferido, sem instalar nada no sistema. Separe espaço em
+disco e **algumas horas** para o primeiro build: o LLVM do ZLUDA é a parte demorada.
 
-O jeito mais fácil: depois de cada teste, rode na pasta do jogo
+**Arquivos da NVIDIA**, que você mesmo obtém:
+
+- `nvngx_dlss.dll` **exatamente 310.9.1**. O script do jogo confere o SHA256 e recusa outra versão.
+- `_nvngx.dll` versão **32.0.16.1714**, a validada. Pela numeração da NVIDIA, ela corresponde ao driver 617.14:
+  baixe o instalador no site da NVIDIA, abra com o 7-Zip sem instalar, procure o `_nvngx.dll` e confira a versão
+  em Propriedades → Detalhes.
+
+Guarde os dois numa pasta fixa, por exemplo `C:\d4r-nvidia\`.
+
+## 2. Baixar o código
+
+No PowerShell, numa pasta com espaço, por exemplo `C:\src`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File d4r\collect-logs.ps1
+git lfs install
+git clone -b windows https://github.com/countervolts/d4r.git
+cd d4r
+git clone https://github.com/vosen/ZLUDA external/ZLUDA
+git -C external/ZLUDA checkout ee2f25a180099fa42f36b2346732e1f2470a03ad
+git -C external/ZLUDA submodule update --init --recursive --depth 1
+git -C external/ZLUDA lfs pull
 ```
 
-Ele cria `d4r-report-<data>.zip` com todos os logs abaixo e um `system.txt` (versão do Windows, GPUs e
-drivers, HIP SDK, versões dos arquivos da NVIDIA e do d4r). Os logs têm caminhos de arquivos, que podem incluir
-o seu nome de usuário do Windows. O que vai no zip:
+## 3. Compilar
 
-- `d4r\d4r_nvngx.log`: log do d4r e da bridge, recriado a cada execução;
-- `d4r_nvapi.log`: tudo o que o jogo, o OptiScaler e o NGX pediram ao NVAPI (linhas "unimplemented" mostram o
-  que pode faltar);
-- `d4r\interop-report.txt`;
-- a saída do `d4r\setup.ps1 -CheckOnly` e do `d4r\test-dlss.ps1` (copie do PowerShell);
-- `OptiScaler.log` (ponha `LogToFile=true` na seção `[Log]` do `OptiScaler.ini`);
-- se funcionar: FPS com DLSS K e M em Quality, com `NativeFp8` `on` e `off`, e prints no mesmo lugar.
+Todos os comandos rodam na pasta `d4r`, em ordem. Cada script para com uma mensagem clara se faltar algo.
 
-## Problemas prováveis e o que fazer
+```powershell
+# ferramentas locais (uma vez)
+powershell -NoProfile -File scripts/windows/setup-windows-tools.ps1 -RuntimeProfile therock
+powershell -NoProfile -File scripts/windows/setup-rust-toolchain.ps1
 
-| Sintoma | Causa provável | O que fazer |
-|---|---|---|
-| O OptiScaler não oferece DLSS | o `version.dll` do d4r não carregou o NVAPI antes do OptiScaler | confira se o `version.dll` é o do d4r (o `setup.ps1` verifica) e se nenhum outro mod substituiu |
-| `AMD's HIP runtime ... is not installed` ou `loading ZLUDA ... failed` no log | HIP não encontrado (o d4r se desliga sozinho e o jogo continua, sem DLSS) | instale o HIP SDK, reinicie, ou aponte `RocmDir` em `d4r\d4r.ini` |
-| `ZLUDA cuInit failed` | HIP SDK sem suporte à GPU ou driver antigo | atualize o driver e o HIP SDK |
-| O jogo congela 1–3 min ao ativar a DLSS | compilação dos kernels na primeira vez | espere; nas próximas vezes é rápido |
-| Imagem preta ou com ruído | kernel incorreto ou NGX recusou algo | mande os logs e o `test-output.raw.bmp` |
-| Log com "but the bytes do not cross" | o driver aceita o buffer compartilhado, mas o HIP e o D3D12 não enxergam os mesmos bytes | nada a fazer: o d4r já passou sozinho a copiar pela RAM (mais lento, imagem correta). Mande os logs |
-| Log com "HIP device 0: ... integrated" | a iGPU do 7800X3D está ativa | normal: o d4r escolhe a RX 9070 XT. Se quiser, desative a iGPU na BIOS |
+# ZLUDA com os patches do d4r (o LLVM leva horas na primeira vez)
+powershell -NoProfile -File scripts/windows/prepare-zluda-source.ps1
+powershell -NoProfile -File scripts/windows/build-zluda-llvm.ps1
+powershell -NoProfile -File scripts/windows/build-zluda-helpers.ps1
+powershell -NoProfile -File scripts/windows/build-zluda-windows.ps1
 
-**Não use em jogos com anti-cheat online**: a injeção de DLL do OptiScaler pode dar ban.
+# OptiScaler com os patches do d4r
+powershell -NoProfile -File scripts/windows/build-optiscaler-windows.ps1
 
-## Desinstalar
+# shim e diagnósticos para a sua GPU
+$arch = 'gfx1201'
+$diag = "$PWD\dist\windows-$arch-diagnostics"
+.\scripts\windows\build-windows-rdna4.ps1 -RuntimeProfile therock -GpuArch $arch -ZludaRoot "$PWD\dist\zluda-windows-final" -BuildDirectory "$PWD\build\windows-$arch" -InstallDirectory $diag
+```
 
-Apague `nvapi64.dll`, `version.dll`, `dxgi.dll`, `OptiScaler.ini`, `OptiScaler.log`,
-`D4R_WINDOWS_README.txt` e a pasta `d4r\` da pasta do jogo. Se você já usava o OptiScaler antes, restaure o
-`OptiScaler.ini.d4r-backup`. Os caches `%LOCALAPPDATA%\zluda` e `%LOCALAPPDATA%\d4r` também podem ser
-apagados.
+## 4. Testar no seu hardware, sem jogo
+
+```powershell
+.\scripts\windows\test-windows-rdna4.ps1 -RuntimeProfile therock -PackageRoot $diag -ZludaRoot "$PWD\dist\zluda-windows-final" -NgxCore "C:\d4r-nvidia\_nvngx.dll" -DlssDll "C:\d4r-nvidia\nvngx_dlss.dll"
+```
+
+Passou se terminar com código 0 e mostrar `PASS HIP`, `PASS CUDA`, `PASS INTEROP_LIFETIME`, `PASS INTEROP` e
+`PASS NGX_INIT ... sr_available=1`. Se falhar, ele imprime o caminho de **um ZIP** com tudo o que é preciso para
+diagnosticar.
+
+## 5. Montar o pacote do jogo
+
+```powershell
+.\scripts\windows\stage-native-k.ps1 -DlssDll "C:\d4r-nvidia\nvngx_dlss.dll" -PackageRoot $diag
+.\scripts\windows\stage-native-m.ps1 -DlssDll "C:\d4r-nvidia\nvngx_dlss.dll" -PackageRoot $diag
+.\scripts\windows\package-windows-game.ps1 -DiagnosticRoot $diag -GpuArch $arch -PackageRoot "$PWD\dist\windows-$arch-game" -ArchivePath "$PWD\dist\windows-$arch-game.zip"
+```
+
+O pacote fica em `dist\windows-gfx1201-game`, sem nenhum arquivo da NVIDIA dentro.
+
+## 6. Rodar um jogo
+
+Escolha um jogo D3D12 **sem anti-cheat**. Na primeira vez, rode com os diagnósticos ligados:
+
+```powershell
+.\dist\windows-gfx1201-game\windows-game.ps1 -GameExe "D:\Jogos\...\Binaries\Win64\Jogo-Win64-Shipping.exe" -NgxCore "C:\d4r-nvidia\_nvngx.dll" -DlssDll "C:\d4r-nvidia\nvngx_dlss.dll" -Preset 11 -ValidateOutput -CaptureExceptions
+```
+
+- O script confere a GPU antes de mexer nos arquivos do jogo e faz backup dos originais.
+- Ele instala o OptiScaler como `dxgi.dll`. No jogo, escolha DLSS nas opções gráficas.
+- `-Preset 11` é o DLSS 4 (K); `-Preset 13` é o DLSS 4.5 (M), mais bonito e mais pesado.
+- **A primeira vez pode travar por minutos** enquanto o ZLUDA compila os kernels. Depois fica rápido.
+- Para medir FPS, rode sem `-ValidateOutput` e sem os perfis de diagnóstico.
+- Ao fechar o jogo, o script imprime o caminho de um ZIP com os logs. Ele tem caminhos de arquivos, que podem
+  incluir o seu nome de usuário do Windows.
+
+Para **desfazer** a instalação no jogo:
+
+```powershell
+.\dist\windows-gfx1201-game\windows-game.ps1 -Action restore -GameExe "D:\Jogos\...\Jogo-Win64-Shipping.exe"
+```
+
+## A iGPU do 7800X3D
+
+O port escolhe a GPU do HIP pela mesma placa que o jogo usa no D3D12 (pela LUID), então a iGPU não deve atrapalhar.
+Se algo apontar para a GPU errada, desative a iGPU na BIOS e teste de novo.
+
+## Se der problema
+
+- Guarde o ZIP que o script imprime. Ele tem stdout/stderr, versões de DLLs, driver e logs do OptiScaler.
+- Relate no projeto original: na [issue #10](https://github.com/countervolts/d4r/issues/10), onde o pessoal está
+  testando o Windows, ou numa issue nova. Diga a GPU, o jogo, o comando usado e anexe o ZIP. Lembre que o ZIP tem
+  caminhos com o seu nome de usuário.
+- **Não use em jogos com anti-cheat online:** a injeção de DLL do OptiScaler pode dar ban.
+
+## E o port alternativo do fork `r-ramos97/d4r`?
+
+O branch `windows-native` do seu fork foi uma implementação paralela, feita antes de sabermos do port oficial. Ele
+nunca rodou numa GPU real. Fica como arquivo: **use o port oficial acima**. O que dele ainda pode ajudar o projeto
+original está em [CONTRIBUICOES_WINDOWS.md](CONTRIBUICOES_WINDOWS.md).

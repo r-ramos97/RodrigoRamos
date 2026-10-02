@@ -27,13 +27,15 @@ jogo (D3D12) → OptiScaler → d4r_nvngx.dll (shim NGX) → NGX + nvngx_dlss.dl
 
 ## Plano para o meu PC (Ryzen 7 7800X3D, 1×16 GB DDR5-4800, RX 9070 XT 16 GB, Windows 11)
 
-A RX 9070 XT é `gfx1201`: o d4r a suporta só em emulador, então qualquer resultado real é novidade.
+A RX 9070 XT é `gfx1201`. No Linux, a release do d4r ainda não foi testada nela.
 
-> **Novo: port para Windows 11 nativo** no fork [r-ramos97/d4r](https://github.com/r-ramos97/d4r/tree/windows-native)
-> (branch `windows-native`). Passo a passo de teste neste PC: [GUIA_WINDOWS.md](GUIA_WINDOWS.md). O caminho abaixo,
-> com Linux, continua sendo o da release oficial.
+> **Windows 11 nativo:** o projeto original tem um port oficial no branch
+> [`windows`](https://github.com/countervolts/d4r/tree/windows), **validado numa RX 9070 XT**. É um pacote de
+> desenvolvimento, compilado no próprio PC. Passo a passo para este PC: [GUIA_WINDOWS.md](GUIA_WINDOWS.md). O port
+> alternativo do fork `r-ramos97/d4r` (`windows-native`) fica arquivado; o que dele ainda pode ajudar está em
+> [CONTRIBUICOES_WINDOWS.md](CONTRIBUICOES_WINDOWS.md). O caminho abaixo, com Linux, é o da release oficial.
 
-### 0. Linux em dual boot (a release oficial do d4r não roda no Windows nem no WSL)
+### 0. Linux em dual boot (a release oficial do d4r é para Linux; o Windows usa o port acima)
 
 - Precisa de Linux nativo: o d4r usa Proton, `/dev/kfd` e Vulkan do driver real.
 - Recomendado: **CachyOS** (base Arch, o mesmo ambiente do autor), num SSD separado ou numa partição de
