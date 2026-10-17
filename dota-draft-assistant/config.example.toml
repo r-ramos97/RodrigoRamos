@@ -1,0 +1,49 @@
+# Copie para config.toml e ajuste. Tokens também podem vir das variáveis
+# de ambiente STRATZ_TOKEN e OPENDOTA_API_KEY.
+
+# Faixa de MMR usada para win rate base e confrontos:
+# herald, guardian, crusader, archon, legend, ancient, divine, immortal ou pro
+bracket = "divine"
+
+# "auto" usa STRATZ quando houver token (amostra ranqueada + sinergia), senão OpenDota.
+matchup_source = "auto"
+stratz_token = ""
+opendota_api_key = ""
+gsi_token = ""
+
+[weights]
+counter = 1.0   # vantagem contra os heróis inimigos
+synergy = 0.5   # vantagem junto dos aliados (só com STRATZ)
+meta = 0.4      # win rate do herói na faixa escolhida
+pro = 0.3       # presença (picks + bans) no cenário profissional
+coach = 0.5     # prioridade nos drafts dos times do coach
+prior_games = 60
+
+[coach]
+enabled = true
+name = 'Filipe "Astini" Astini'
+
+# Confirme cada team_id com: python -m draft_assistant coach-teams "nemesis"
+# Datas aproximadas (fontes públicas); ajuste se souber as datas exatas.
+[[coach.stints]]
+team_name = "Team Nemesis"
+start = "2026-03-01"
+team_id = 0
+
+[[coach.stints]]
+team_name = "PARIVISION"
+start = "2024-10-01"
+end = "2026-02-28"
+team_id = 0
+
+[[coach.stints]]
+team_name = "Cloud9"
+start = "2024-01-01"
+end = "2024-09-30"
+team_id = 0
+
+[[coach.stints]]
+team_name = "nouns"
+start = "2023-01-01"
+end = "2023-12-31"
+team_id = 0
