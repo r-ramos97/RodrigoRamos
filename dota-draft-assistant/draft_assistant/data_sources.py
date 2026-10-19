@@ -6,6 +6,7 @@ da rede nem gaste o limite diário das APIs.
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -31,10 +32,24 @@ class JsonCache:
             return None
         if not allow_stale and time.time() - path.stat().st_mtime > self.ttl:
             return None
-        return json.loads(path.read_text(encoding="utf-8"))["data"]
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))["data"]
+        except (ValueError, KeyError, TypeError):  # arquivo corrompido: trata como ausente
+            return None
+
+    def age(self, key: str) -> float | None:
+        """Segundos desde a última gravação de `key` (None se nunca foi baixada)."""
+        try:
+            return max(0.0, time.time() - self._path(key).stat().st_mtime)
+        except FileNotFoundError:
+            return None
 
     def put(self, key: str, data) -> None:
-        self._path(key).write_text(json.dumps({"key": key, "data": data}), encoding="utf-8")
+        # Grava num temporário e troca de uma vez: fechar o programa no meio não deixa JSON pela metade.
+        path = self._path(key)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"key": key, "data": data}), encoding="utf-8")
+        os.replace(tmp, path)
 
 
 class _HttpClient:
@@ -52,17 +67,20 @@ class _HttpClient:
             time.sleep(wait)
         self._last_call = time.monotonic()
 
-    def _cached(self, key: str, fetch, offline: bool = False):
-        data = self.cache.get(key)
-        if data is not None:
-            return data
+    def _cached(self, key: str, fetch, offline: bool = False, refresh: bool = False):
+        """Cache primeiro. `refresh=True` ignora a validade e baixa de novo; se a rede falhar, levanta
+        o erro em vez de devolver o cache antigo, para quem pediu a atualização saber que ela não houve."""
+        if not refresh:
+            data = self.cache.get(key)
+            if data is not None:
+                return data
         if offline:
             return self.cache.get(key, allow_stale=True)
         try:
             self._throttle()
             data = fetch()
         except requests.RequestException:
-            stale = self.cache.get(key, allow_stale=True)
+            stale = None if refresh else self.cache.get(key, allow_stale=True)
             if stale is not None:
                 return stale
             raise
@@ -79,9 +97,13 @@ class OpenDotaClient(_HttpClient):
         super().__init__(cache, **kwargs)
         self.api_key = api_key
 
-    def _get(self, path: str, params: dict | None = None, offline: bool = False):
+    @staticmethod
+    def _key(path: str, params: dict | None = None) -> str:
+        return f"opendota:{path}:{json.dumps(params or {}, sort_keys=True)}"
+
+    def _get(self, path: str, params: dict | None = None, offline: bool = False, refresh: bool = False):
         params = dict(params or {})
-        key = f"opendota:{path}:{json.dumps(params, sort_keys=True)}"
+        key = self._key(path, params)
         if self.api_key:
             params["api_key"] = self.api_key
 
@@ -90,18 +112,22 @@ class OpenDotaClient(_HttpClient):
             resp.raise_for_status()
             return resp.json()
 
-        return self._cached(key, fetch, offline=offline)
+        return self._cached(key, fetch, offline=offline, refresh=refresh)
 
-    def hero_stats(self, offline: bool = False) -> list[dict]:
+    def cache_age(self, path: str, params: dict | None = None) -> float | None:
+        """Idade (s) da cópia local de `path`, ex.: "/heroStats"; None se nunca foi baixado."""
+        return self.cache.age(self._key(path, params))
+
+    def hero_stats(self, offline: bool = False, refresh: bool = False) -> list[dict]:
         """Pick/win por faixa de MMR (1=Herald ... 8=Immortal), pro_pick/pro_win/pro_ban, roles, imagens."""
-        return self._get("/heroStats", offline=offline)
+        return self._get("/heroStats", offline=offline, refresh=refresh)
 
-    def matchups(self, hero_id: int, offline: bool = False) -> list[dict]:
+    def matchups(self, hero_id: int, offline: bool = False, refresh: bool = False) -> list[dict]:
         """[{hero_id, games_played, wins}] — `wins` são as vitórias de `hero_id` da URL contra cada herói."""
-        return self._get(f"/heroes/{int(hero_id)}/matchups", offline=offline)
+        return self._get(f"/heroes/{int(hero_id)}/matchups", offline=offline, refresh=refresh)
 
-    def patches(self, offline: bool = False) -> list[dict]:
-        return self._get("/constants/patch", offline=offline)
+    def patches(self, offline: bool = False, refresh: bool = False) -> list[dict]:
+        return self._get("/constants/patch", offline=offline, refresh=refresh)
 
     def pro_matches(self, less_than_match_id: int | None = None) -> list[dict]:
         params = {"less_than_match_id": less_than_match_id} if less_than_match_id else None
@@ -143,7 +169,7 @@ class StratzClient(_HttpClient):
         # O STRATZ bloqueia clientes sem este User-Agent.
         self.session.headers["User-Agent"] = "STRATZ_API"
 
-    def query(self, gql: str, variables: dict | None = None, offline: bool = False):
+    def query(self, gql: str, variables: dict | None = None, offline: bool = False, refresh: bool = False):
         key = f"stratz:{gql}:{json.dumps(variables or {}, sort_keys=True)}"
 
         def fetch():
@@ -154,12 +180,13 @@ class StratzClient(_HttpClient):
                 raise requests.RequestException(str(body["errors"]))
             return body["data"]
 
-        return self._cached(key, fetch, offline=offline)
+        return self._cached(key, fetch, offline=offline, refresh=refresh)
 
-    def hero_matchup(self, hero_id: int, bracket: str | None = None, offline: bool = False) -> dict:
+    def hero_matchup(self, hero_id: int, bracket: str | None = None, offline: bool = False,
+                     refresh: bool = False) -> dict:
         """Vs e com (sinergia) de um herói, numa faixa como "DIVINE_IMMORTAL" ou "LEGEND_ANCIENT"."""
         variables = {"heroId": int(hero_id), "bracket": [bracket] if bracket else None}
-        data = self.query(self.HERO_MATCHUP_QUERY, variables, offline=offline)
+        data = self.query(self.HERO_MATCHUP_QUERY, variables, offline=offline, refresh=refresh)
         return data["heroStats"]["heroVsHeroMatchup"]["advantage"][0]
 
 

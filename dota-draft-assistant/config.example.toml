@@ -9,7 +9,14 @@ bracket = "divine"
 matchup_source = "auto"
 stratz_token = ""
 opendota_api_key = ""
+# Token do GSI. Vazio: vale o que o `setup`/`gsi-config` gravou em data/state.json.
 gsi_token = ""
+
+[auto]
+# Padrões do modo automático (python -m draft_assistant auto); as opções da linha de comando
+# têm prioridade. É o que vale quando o assistente abre junto com o sistema (autostart-on).
+role = ""   # filtra os picks por função: "Carry", "Support", "Initiator"...; vazio = todas
+top = 6     # quantos picks sugeridos mostrar na janela
 
 [weights]
 counter = 1.0   # vantagem contra os heróis inimigos

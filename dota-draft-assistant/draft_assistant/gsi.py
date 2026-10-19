@@ -11,13 +11,14 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .models import DraftState
+from .models import DraftState, TurnInfo
 
 DEFAULT_DOTA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\dota 2 beta")
 CFG_SUBDIR = Path("game/dota/cfg/gamestate_integration")
 CFG_NAME = "gamestate_integration_draftassistant.cfg"
 
 TEAM_KEYS = {"radiant": "team2", "dire": "team3"}
+ACTIVE_TEAMS = {2: "radiant", 3: "dire"}  # draft.activeteam
 
 
 def config_text(port: int, token: str) -> str:
@@ -83,11 +84,33 @@ def parse_draft(payload: dict, my_side: str | None = None) -> DraftState | None:
     )
 
 
-class GSIServer:
-    """Servidor HTTP local que recebe o GSI e chama `on_draft` quando o draft muda."""
+def parse_turn(payload: dict, side: str | None = None) -> TurnInfo | None:
+    """De quem é a vez no draft (`activeteam` 2 = Radiant, 3 = Dire), se é pick ou ban e o tempo restante."""
+    draft = payload.get("draft")
+    if not draft or not any(k in draft for k in ("activeteam", "pick", "activeteam_time_remaining")):
+        return None
+    side = (side or payload.get("player", {}).get("team_name") or "").lower()
+    active = ACTIVE_TEAMS.get(int(draft.get("activeteam") or 0))
+    pick, seconds = draft.get("pick"), draft.get("activeteam_time_remaining")
+    return TurnInfo(
+        my_turn=(active == side) if active and side in TEAM_KEYS else None,
+        is_pick=bool(pick) if pick is not None else None,
+        seconds_left=float(seconds) if seconds is not None else None,
+    )
 
-    def __init__(self, on_draft, port: int = 3000, token: str | None = None, my_side: str | None = None):
+
+class GSIServer:
+    """Servidor HTTP local que recebe o GSI e chama `on_draft` quando o draft muda.
+
+    `on_payload`, se informado, recebe todo payload autenticado (cru), antes da leitura do draft;
+    é por ele que o modo automático (`auto.AutoPilot.handle_gsi`) acompanha as fases da partida.
+    `on_draft` pode ser None quando só o `on_payload` interessa.
+    """
+
+    def __init__(self, on_draft, port: int = 3000, token: str | None = None, my_side: str | None = None,
+                 on_payload=None):
         self.on_draft = on_draft
+        self.on_payload = on_payload
         self.token = token
         self.my_side = my_side
         self._last_key = None
@@ -113,6 +136,10 @@ class GSIServer:
 
     def handle_payload(self, payload: dict) -> None:
         if self.token and payload.get("auth", {}).get("token") != self.token:
+            return
+        if self.on_payload is not None:
+            self.on_payload(payload)
+        if self.on_draft is None:
             return
         state = parse_draft(payload, self.my_side)
         if state is None or state.key() == self._last_key:
