@@ -685,3 +685,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("\nInterrompido.", file=sys.stderr)
         return 130
+    except requests.RequestException as exc:
+        print(f"Erro de rede ao falar com a API ({type(exc).__name__}). Confira a internet e tente de novo; "
+              "o que já estava baixado continua salvo.", file=sys.stderr)
+        return 2

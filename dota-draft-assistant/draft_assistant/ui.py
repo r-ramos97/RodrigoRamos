@@ -12,6 +12,7 @@ import queue
 import re
 import sys
 import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -165,7 +166,8 @@ class TerminalView:
         """
         try:
             while not self._closed.is_set() and not (stop_event and stop_event.is_set()):
-                self._closed.wait(0.2)
+                # sleep e não Event.wait: Ctrl+C dentro de Event.wait pode corromper o lock interno
+                time.sleep(0.2)
         except KeyboardInterrupt:
             pass
         finally:
